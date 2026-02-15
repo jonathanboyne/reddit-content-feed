@@ -1,8 +1,12 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const PORT = 3000;
 
-// Mock Reddit data - fake posts that look like real ones
+// Enable CORS so frontend can connect
+app.use(cors());
+
+// Mock Reddit data
 const mockPosts = [
   {
     id: '1',
