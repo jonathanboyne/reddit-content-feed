@@ -6,9 +6,10 @@ const PORT = 3000;
 
 // Enable CORS
 app.use(cors());
+app.use(express.json()); // Parse JSON request bodies
 
-// List of subreddits to fetch from
-const subreddits = ['music', 'nba', 'technology'];
+// Store subreddits in memory (starts with defaults)
+let subreddits = ['music', 'nba', 'technology'];
 
 // Function to fetch posts from Reddit JSON API
 async function fetchRedditPosts() {
@@ -26,7 +27,6 @@ async function fetchRedditPosts() {
       
       const data = response.data;
       
-      // Convert Reddit JSON to our format
       const posts = data.data.children.map(child => ({
         id: child.data.id,
         title: child.data.title,
@@ -38,8 +38,6 @@ async function fetchRedditPosts() {
       }));
       
       allPosts.push(...posts);
-      
-      // Small delay between requests
       await new Promise(resolve => setTimeout(resolve, 500));
       
     } catch (error) {
@@ -55,7 +53,7 @@ app.get('/', (req, res) => {
   res.send('Reddit Content Feed API - Server is running!');
 });
 
-// API endpoint to get posts
+// Get all posts
 app.get('/api/posts', async (req, res) => {
   try {
     const posts = await fetchRedditPosts();
@@ -64,6 +62,44 @@ app.get('/api/posts', async (req, res) => {
     console.error('Error fetching posts:', error);
     res.status(500).json({ error: 'Failed to fetch posts' });
   }
+});
+
+// Get list of subreddits
+app.get('/api/subreddits', (req, res) => {
+  res.json({ subreddits });
+});
+
+// Add a new subreddit
+app.post('/api/subreddits', (req, res) => {
+  const { subreddit } = req.body;
+  
+  if (!subreddit) {
+    return res.status(400).json({ error: 'Subreddit name required' });
+  }
+  
+  // Remove 'r/' if user includes it
+  const cleanName = subreddit.replace(/^r\//, '').trim().toLowerCase();
+  
+  if (subreddits.includes(cleanName)) {
+    return res.status(400).json({ error: 'Subreddit already exists' });
+  }
+  
+  subreddits.push(cleanName);
+  res.json({ subreddits, message: `Added r/${cleanName}` });
+});
+
+// Remove a subreddit
+app.delete('/api/subreddits/:name', (req, res) => {
+  const { name } = req.params;
+  const cleanName = name.toLowerCase();
+  
+  const index = subreddits.indexOf(cleanName);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Subreddit not found' });
+  }
+  
+  subreddits.splice(index, 1);
+  res.json({ subreddits, message: `Removed r/${cleanName}` });
 });
 
 // Start server
