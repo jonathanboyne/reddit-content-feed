@@ -1,41 +1,54 @@
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const app = express();
 const PORT = 3000;
 
-// Enable CORS so frontend can connect
+// Enable CORS
 app.use(cors());
 
-// Mock Reddit data
-const mockPosts = [
-  {
-    id: '1',
-    title: 'Amazing concert announced for next month!',
-    subreddit: 'music',
-    author: 'musiclover99',
-    upvotes: 523,
-    created: '2 hours ago',
-    url: 'https://reddit.com/r/music/comments/example1'
-  },
-  {
-    id: '2',
-    title: 'Lakers defeat Celtics in overtime thriller',
-    subreddit: 'nba',
-    author: 'hoopsfan',
-    upvotes: 1847,
-    created: '5 hours ago',
-    url: 'https://reddit.com/r/nba/comments/example2'
-  },
-  {
-    id: '3',
-    title: 'New indie band recommendation - they\'re incredible',
-    subreddit: 'music',
-    author: 'indievibes',
-    upvotes: 234,
-    created: '1 day ago',
-    url: 'https://reddit.com/r/music/comments/example3'
+// List of subreddits to fetch from
+const subreddits = ['music', 'nba', 'technology'];
+
+// Function to fetch posts from Reddit JSON API
+async function fetchRedditPosts() {
+  const allPosts = [];
+  
+  for (const subreddit of subreddits) {
+    try {
+      const response = await axios.get(`https://old.reddit.com/r/${subreddit}.json?limit=5`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.5',
+        }
+      });
+      
+      const data = response.data;
+      
+      // Convert Reddit JSON to our format
+      const posts = data.data.children.map(child => ({
+        id: child.data.id,
+        title: child.data.title,
+        subreddit: subreddit,
+        author: child.data.author,
+        upvotes: child.data.ups,
+        url: `https://www.reddit.com${child.data.permalink}`,
+        created: new Date(child.data.created_utc * 1000).toLocaleString()
+      }));
+      
+      allPosts.push(...posts);
+      
+      // Small delay between requests
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+    } catch (error) {
+      console.error(`Error fetching r/${subreddit}:`, error.message);
+    }
   }
-];
+  
+  return allPosts;
+}
 
 // Root route
 app.get('/', (req, res) => {
@@ -43,11 +56,18 @@ app.get('/', (req, res) => {
 });
 
 // API endpoint to get posts
-app.get('/api/posts', (req, res) => {
-  res.json(mockPosts);
+app.get('/api/posts', async (req, res) => {
+  try {
+    const posts = await fetchRedditPosts();
+    res.json(posts);
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    res.status(500).json({ error: 'Failed to fetch posts' });
+  }
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Fetching from subreddits: ${subreddits.join(', ')}`);
 });
